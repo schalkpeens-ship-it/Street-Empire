@@ -1,2 +1,5 @@
 # Underworld RP v1
 Fictional game economy only. Upload these files to a GitHub repository, create a Railway service from that repo, add PostgreSQL, and set DATABASE_URL to the PostgreSQL service reference, ADMIN_PASSWORD (12+ characters), ADMIN_USERNAME (optional, defaults to admin), SESSION_SECRET (long random value), NODE_ENV=production. Generate a public domain in Railway networking. Start command npm start. Initial admin is created only when the database has no members. No live game integration. MVP: two roles, manual ledger, no approvals or custom permissions yet. Inventory is a sum of recorded movements, not enforced stock. Staff see their own records. No automatic payroll. Back up the database before upgrades.
+
+## v1.0.6
+Bosses can edit existing member usernames, ranks and weekly base salaries in The Crew. No schema changes. Individual commissions, bonuses and suspension are not included.
