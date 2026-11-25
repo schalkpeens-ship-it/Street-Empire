@@ -1,5 +1,5 @@
 # Underworld RP v1
 Fictional game economy only. Upload these files to a GitHub repository, create a Railway service from that repo, add PostgreSQL, and set DATABASE_URL to the PostgreSQL service reference, ADMIN_PASSWORD (12+ characters), ADMIN_USERNAME (optional, defaults to admin), SESSION_SECRET (long random value), NODE_ENV=production. Generate a public domain in Railway networking. Start command npm start. Initial admin is created only when the database has no members. No live game integration. MVP: two roles, manual ledger, no approvals or custom permissions yet. Inventory is a sum of recorded movements, not enforced stock. Staff see their own records. No automatic payroll. Back up the database before upgrades.
 
-## v1.1.0
-Security and account management update. SESSION_SECRET is now required at startup (no longer silently generated). Login is rate-limited to 20 attempts per 15 minutes per IP. Members can change their own password via the Account page. Bosses can reset any member's password and deactivate/reactivate member accounts from The Crew page. Inactive members cannot log in. Commission on payroll now correctly reads the rate locked in at sale time rather than the current settings value. Schema migration: adds `active` column to members table (safe to run against existing database). New dependency: express-rate-limit. Bump package version to 1.1.0.
+## v1.0.6
+Bosses can edit existing member usernames, ranks and weekly base salaries in The Crew. No schema changes. Individual commissions, bonuses and suspension are not included.
