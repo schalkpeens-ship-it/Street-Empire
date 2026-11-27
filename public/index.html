@@ -302,6 +302,14 @@ body{background:var(--bg) url('/texture.webp');color:var(--text);font-family:'In
       <span class="nav-icon">🧺</span>
       <div><div>Washing</div><small>Laundering fees</small></div>
     </div>
+    <div class="nav-item" data-page="Recipes" onclick="nav('Recipes')" id="recipes-nav-item">
+      <span class="nav-icon">🧪</span>
+      <div><div>Recipes</div><small>Craft formulas</small></div>
+    </div>
+    <div class="nav-item" data-page="Production" onclick="nav('Production')">
+      <span class="nav-icon">🏭</span>
+      <div><div>Production</div><small>Craft &amp; stock</small></div>
+    </div>
   </div>
   <div class="nav-section">
     <div class="nav-item" data-page="Account" onclick="nav('Account')">
@@ -388,7 +396,7 @@ body{background:var(--bg) url('/texture.webp');color:var(--text);font-family:'In
 <div id="toast"></div>
 
 <script>
-var D={user:null,settings:{},entries:[],members:[],consumables:[],vehicles:[],ammo:[],busts:[],fuelLogs:[],washLogs:[]};
+var D={user:null,settings:{},entries:[],members:[],consumables:[],vehicles:[],ammo:[],busts:[],fuelLogs:[],washLogs:[],recipes:[],crafts:[],stock:[]};
 var currentPage='Dashboard';
 
 function tick(){
@@ -456,6 +464,7 @@ async function load(){
   document.getElementById('main').style.display='block';
   document.getElementById('boss-nav').style.display=isBoss?'':'none';
   document.getElementById('wash-nav-item').style.display=isBoss?'':'none';
+  document.getElementById('recipes-nav-item').style.display=isBoss?'':'none';
   nav(currentPage);
 }
 
@@ -813,6 +822,78 @@ function show(p){
         '<div class="card stat-card c-green"><div class="stat-icon">✅</div><div class="stat-label">Total Clean Out</div><div class="stat-value">'+cur+fmt(totalClean)+'</div></div>'+
       '</div>'+
       '<div class="card">'+rows+'</div>';
+    return;
+  }
+
+  if(p==='Recipes'){
+    if(!isBoss){nav('Dashboard');return;}
+    function canMake(recipe){
+      var ings=recipe.ingredients||[];
+      if(!ings.length)return 0;
+      return Math.floor(Math.min.apply(null,ings.map(function(ing){
+        var c=D.consumables.find(function(x){return x.id===ing.consumable_id;});
+        return c?Math.floor(Number(c.quantity)/Number(ing.quantity)):0;
+      })));
+    }
+    var rows=D.recipes.length?'<table class="data-table"><thead><tr><th>Recipe</th><th>Ingredients</th><th>Output</th><th>Can Make</th><th>Actions</th></tr></thead><tbody>'+
+      D.recipes.map(function(rec){
+        var ings=(rec.ingredients||[]).filter(function(i){return i.consumable_id;});
+        var batches=canMake(rec);
+        var ingHtml=ings.map(function(i){return '<span class="badge badge-gray" style="margin:1px">'+esc(i.consumable_name||'?')+' ×'+i.quantity+'</span>';}).join(' ');
+        return '<tr>'+
+          '<td><span style="font-weight:700;font-style:italic;font-size:15px">'+esc(rec.name)+'</span></td>'+
+          '<td>'+ingHtml+'</td>'+
+          '<td><span class="badge badge-lime">'+esc(rec.output_product)+' ×'+rec.output_qty+'</span></td>'+
+          '<td style="font-size:16px;font-weight:800;font-style:italic;color:'+(batches===0?'var(--red)':batches<5?'#90c0ff':'var(--lime)')+'">'+batches+' batch'+(batches===1?'':'es')+'</td>'+
+          '<td><div class="member-actions">'+
+            '<button class="btn btn-ghost btn-sm" onclick="openEditRecipe('+rec.id+')">Edit</button>'+
+            '<button class="btn btn-danger btn-sm" onclick="deleteRecipe('+rec.id+',\''+esc(rec.name)+'\')">Delete</button>'+
+          '</div></td></tr>';
+      }).join('')+'</tbody></table>':
+      '<div class="empty-state"><div class="icon">🧪</div><p>No recipes yet — add one to start crafting.</p></div>';
+    main.innerHTML='<div class="page-header"><div class="page-title-row"><div><h2>RECIPES</h2><p>'+D.recipes.length+' formula'+(D.recipes.length===1?'':'s')+'</p></div>'+
+      '<button class="btn btn-primary btn-sm" onclick="openAddRecipe()">➕ NEW RECIPE</button></div></div>'+
+      '<div class="card">'+rows+'</div>';
+    return;
+  }
+
+  if(p==='Production'){
+    // Finished stock table with sold-from-entries calc
+    var soldMap={};
+    D.entries.filter(function(e){return e.type==='sale';}).forEach(function(e){
+      if(!soldMap[e.item])soldMap[e.item]=0;
+      soldMap[e.item]+=Number(e.quantity);
+    });
+    var totalCrafted=D.crafts.reduce(function(a,c){return a+Number(c.total_output);},0);
+    var stockRows=D.stock.length?'<table class="data-table"><thead><tr><th>Product</th><th>In Stock</th><th>Total Crafted</th><th>Total Sold</th><th>Actions</th></tr></thead><tbody>'+
+      D.stock.map(function(s){
+        var qty=Number(s.quantity);
+        var crafted=D.crafts.filter(function(c){return c.output_product===s.product_name;}).reduce(function(a,c){return a+Number(c.total_output);},0);
+        return '<tr>'+
+          '<td><span style="font-weight:700;font-style:italic;font-size:15px">'+esc(s.product_name)+'</span></td>'+
+          '<td style="font-size:18px;font-weight:800;font-style:italic;color:'+(qty===0?'var(--red)':qty<10?'#90c0ff':'var(--lime)')+'">'+qty+'</td>'+
+          '<td style="color:var(--text2)">'+crafted+'</td>'+
+          '<td style="color:var(--text3)">'+(soldMap[s.product_name]||0)+'</td>'+
+          '<td><div class="member-actions">'+
+            (isBoss?'<button class="btn btn-primary btn-sm" onclick="openSellStock(\''+esc(s.product_name)+'\','+qty+')">Sell</button>':'')+
+            (isBoss?'<button class="btn btn-ghost btn-sm" onclick="openAdjustStock(\''+esc(s.product_name)+'\')">Adjust</button>':'')+
+          '</div></td></tr>';
+      }).join('')+'</tbody></table>':
+      '<div class="empty-state"><div class="icon">📦</div><p>No finished stock — craft something first.</p></div>';
+    var craftRows=D.crafts.length?'<table class="data-table"><thead><tr><th>Recipe</th><th>Output</th><th>Batches</th><th>Units Made</th><th>By</th><th>When</th></tr></thead><tbody>'+
+      D.crafts.map(function(c){return '<tr>'+
+        '<td style="font-weight:700;font-style:italic">'+esc(c.recipe_name||'Deleted recipe')+'</td>'+
+        '<td><span class="badge badge-lime">'+esc(c.output_product||'?')+'</span></td>'+
+        '<td style="color:var(--text2)">'+c.batches+'</td>'+
+        '<td style="color:var(--lime);font-weight:800;font-style:italic">'+c.total_output+'</td>'+
+        '<td style="color:var(--text3)">'+esc(c.username||'?')+'</td>'+
+        '<td style="color:var(--text3);font-size:12px">'+timeAgo(c.created)+'</td>'+
+      '</tr>';}).join('')+'</tbody></table>':
+      '<div class="empty-state"><div class="icon">🏭</div><p>No craft sessions yet.</p></div>';
+    main.innerHTML='<div class="page-header"><div class="page-title-row"><div><h2>PRODUCTION</h2><p>'+totalCrafted+' units crafted total</p></div>'+
+      '<button class="btn btn-primary btn-sm" onclick="openCraft()">🧪 CRAFT</button></div></div>'+
+      '<div class="card row-gap"><div class="card-header"><div class="card-title">FINISHED STOCK</div></div>'+stockRows+'</div>'+
+      '<div class="card"><div class="card-header"><div class="card-title">CRAFT HISTORY</div></div>'+craftRows+'</div>';
     return;
   }
 }
@@ -1272,6 +1353,208 @@ async function submitWash(){
     var m=document.getElementById('modal-wash');if(m)m.remove();
     await load();nav('Washing');
   }else toast('Failed','error');
+}
+
+/* ── RECIPES ── */
+function buildIngredientRows(ings){
+  return (ings||[]).map(function(ing,idx){
+    return '<div class="form-row" id="ing-row-'+idx+'" style="align-items:center;gap:8px">'+
+      '<div class="form-group" style="flex:2"><select class="form-select ing-consumable">'+
+        D.consumables.map(function(c){return '<option value="'+c.id+'"'+(ing.consumable_id===c.id?' selected':'')+'>'+esc(c.name)+' ('+c.quantity+' in stock)</option>';}).join('')+
+      '</select></div>'+
+      '<div class="form-group" style="flex:1"><input class="form-input ing-qty" type="number" min="0.01" step="0.01" value="'+(ing.quantity||1)+'" placeholder="Qty per batch"></div>'+
+      '<button class="btn btn-ghost btn-sm" style="margin-top:0;padding:6px 10px" onclick="this.parentElement.remove()">✕</button>'+
+    '</div>';
+  }).join('');
+}
+function addIngRow(){
+  if(!D.consumables.length){toast('Add consumables first','error');return;}
+  var container=document.getElementById('ing-container');
+  var idx=container.children.length;
+  var div=document.createElement('div');
+  div.className='form-row';div.id='ing-row-'+idx;div.style='align-items:center;gap:8px';
+  div.innerHTML='<div class="form-group" style="flex:2"><select class="form-select ing-consumable">'+
+    D.consumables.map(function(c){return '<option value="'+c.id+'">'+esc(c.name)+' ('+c.quantity+' in stock)</option>';}).join('')+
+  '</select></div>'+
+  '<div class="form-group" style="flex:1"><input class="form-input ing-qty" type="number" min="0.01" step="0.01" value="1" placeholder="Qty per batch"></div>'+
+  '<button class="btn btn-ghost btn-sm" style="margin-top:0;padding:6px 10px" onclick="this.parentElement.remove()">✕</button>';
+  container.appendChild(div);
+}
+function collectIngredients(){
+  var rows=document.querySelectorAll('#ing-container .form-row');
+  var ings=[];
+  rows.forEach(function(row){
+    var cid=parseInt((row.querySelector('.ing-consumable')||{}).value)||0;
+    var qty=parseFloat((row.querySelector('.ing-qty')||{}).value)||0;
+    if(cid>0&&qty>0)ings.push({consumable_id:cid,quantity:qty});
+  });
+  return ings;
+}
+function openAddRecipe(){
+  if(!D.consumables.length){toast('Add consumables first','error');return;}
+  var html='<div class="modal-overlay open" id="modal-recipe"><div class="modal" style="max-width:560px">'+
+    '<div class="modal-title">🧪 NEW RECIPE</div>'+
+    '<div class="form-group"><label class="form-label">Recipe Name</label><input class="form-input" id="rec-name" placeholder="e.g. Roll Joint, Press Pill, Cut Gram"></div>'+
+    '<div class="form-row">'+
+      '<div class="form-group"><label class="form-label">Output Product</label><input class="form-input" id="rec-product" placeholder="e.g. Joints, Pills, Grams"></div>'+
+      '<div class="form-group"><label class="form-label">Units per Batch</label><input class="form-input" id="rec-output-qty" type="number" min="1" value="1"></div>'+
+    '</div>'+
+    '<div class="settings-title" style="margin-bottom:10px">INGREDIENTS <span style="font-size:11px;color:var(--text3);font-weight:400">(per batch)</span></div>'+
+    '<div id="ing-container">'+buildIngredientRows([{consumable_id:D.consumables[0]&&D.consumables[0].id,quantity:1}])+'</div>'+
+    '<button class="btn btn-ghost btn-sm" onclick="addIngRow()" style="margin-bottom:14px">+ Add Ingredient</button>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'modal-recipe\').remove()">Cancel</button>'+
+    '<button class="btn btn-primary" onclick="saveRecipe(0)">CREATE RECIPE</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+function openEditRecipe(id){
+  var rec=D.recipes.find(function(r){return r.id===id;});
+  if(!rec)return;
+  var ings=(rec.ingredients||[]).filter(function(i){return i.consumable_id;});
+  var html='<div class="modal-overlay open" id="modal-recipe"><div class="modal" style="max-width:560px">'+
+    '<div class="modal-title">🧪 EDIT RECIPE</div>'+
+    '<input type="hidden" id="rec-id" value="'+id+'">'+
+    '<div class="form-group"><label class="form-label">Recipe Name</label><input class="form-input" id="rec-name" value="'+esc(rec.name)+'"></div>'+
+    '<div class="form-row">'+
+      '<div class="form-group"><label class="form-label">Output Product</label><input class="form-input" id="rec-product" value="'+esc(rec.output_product)+'"></div>'+
+      '<div class="form-group"><label class="form-label">Units per Batch</label><input class="form-input" id="rec-output-qty" type="number" min="1" value="'+rec.output_qty+'"></div>'+
+    '</div>'+
+    '<div class="settings-title" style="margin-bottom:10px">INGREDIENTS <span style="font-size:11px;color:var(--text3);font-weight:400">(per batch)</span></div>'+
+    '<div id="ing-container">'+buildIngredientRows(ings)+'</div>'+
+    '<button class="btn btn-ghost btn-sm" onclick="addIngRow()" style="margin-bottom:14px">+ Add Ingredient</button>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'modal-recipe\').remove()">Cancel</button>'+
+    '<button class="btn btn-primary" onclick="saveRecipe('+id+')">SAVE RECIPE</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+async function saveRecipe(id){
+  var name=((document.getElementById('rec-name')||{}).value||'').trim();
+  var product=((document.getElementById('rec-product')||{}).value||'').trim();
+  var outputQty=parseInt((document.getElementById('rec-output-qty')||{}).value)||1;
+  var ingredients=collectIngredients();
+  if(!name){toast('Recipe name required','error');return;}
+  if(!product){toast('Output product required','error');return;}
+  if(!ingredients.length){toast('Add at least one ingredient','error');return;}
+  var endpoint=id?'/api/recipe/edit':'/api/recipe';
+  var body=id?{id:id,name:name,output_product:product,output_qty:outputQty,ingredients:ingredients}:{name:name,output_product:product,output_qty:outputQty,ingredients:ingredients};
+  var r=await api(endpoint,body);
+  if(r&&r.ok){toast(id?'Recipe updated!':'Recipe created!');var m=document.getElementById('modal-recipe');if(m)m.remove();await load();nav('Recipes');}
+  else toast('Failed','error');
+}
+async function deleteRecipe(id,name){
+  if(!confirm('Delete recipe "'+name+'"?'))return;
+  var r=await api('/api/recipe/delete',{id:id});
+  if(r&&r.ok){toast('Deleted');await load();nav('Recipes');}else toast('Failed','error');
+}
+
+/* ── CRAFT ── */
+function openCraft(){
+  if(!D.recipes.length){toast('Create a recipe first','error');return;}
+  function canMake(recipe){
+    var ings=recipe.ingredients||[];
+    if(!ings.length)return 0;
+    return Math.floor(Math.min.apply(null,ings.map(function(ing){
+      var c=D.consumables.find(function(x){return x.id===ing.consumable_id;});
+      return c?Math.floor(Number(c.quantity)/Number(ing.quantity)):0;
+    })));
+  }
+  var recipeOptions=D.recipes.map(function(r){
+    var batches=canMake(r);
+    return '<option value="'+r.id+'" data-max="'+batches+'">'+esc(r.name)+' → '+esc(r.output_product)+' ('+batches+' batches available)</option>';
+  }).join('');
+  var html='<div class="modal-overlay open" id="modal-craft"><div class="modal">'+
+    '<div class="modal-title">🏭 CRAFT</div>'+
+    '<div class="form-group"><label class="form-label">Recipe</label><select class="form-select" id="craft-recipe" onchange="updateCraftPreview()">'+recipeOptions+'</select></div>'+
+    '<div class="form-group"><label class="form-label">Batches</label><input class="form-input" id="craft-batches" type="number" min="1" value="1" oninput="updateCraftPreview()"></div>'+
+    '<div id="craft-preview" style="padding:12px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:14px;font-size:13px">'+
+      '<div id="craft-ing-list" style="margin-bottom:8px"></div>'+
+      '<div>Output: <strong id="craft-output-val" style="color:var(--lime)">—</strong></div>'+
+    '</div>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'modal-craft\').remove()">Cancel</button>'+
+    '<button class="btn btn-primary" onclick="submitCraft()">CRAFT</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+  updateCraftPreview();
+}
+function updateCraftPreview(){
+  var selEl=document.getElementById('craft-recipe');
+  var batches=parseInt((document.getElementById('craft-batches')||{}).value)||1;
+  if(!selEl)return;
+  var rid=parseInt(selEl.value)||0;
+  var rec=D.recipes.find(function(r){return r.id===rid;});
+  if(!rec){return;}
+  var ings=(rec.ingredients||[]).filter(function(i){return i.consumable_id;});
+  var ingHtml=ings.map(function(ing){
+    var c=D.consumables.find(function(x){return x.id===ing.consumable_id;});
+    var need=Number(ing.quantity)*batches;
+    var have=c?Number(c.quantity):0;
+    var ok=have>=need;
+    return '<div style="margin-bottom:4px;color:'+(ok?'var(--text2)':'var(--red)')+'">'+
+      esc(ing.consumable_name||'?')+': need <strong>'+need+'</strong>, have <strong style="color:'+(ok?'var(--lime)':'var(--red)')+'">'+have+'</strong>'+(ok?'':' ⚠️ INSUFFICIENT')+
+    '</div>';
+  }).join('');
+  var el=document.getElementById('craft-ing-list');if(el)el.innerHTML=ingHtml;
+  var outEl=document.getElementById('craft-output-val');
+  if(outEl)outEl.textContent=String(rec.output_qty*batches)+' '+esc(rec.output_product);
+}
+async function submitCraft(){
+  var rid=parseInt((document.getElementById('craft-recipe')||{}).value)||0;
+  var batches=parseInt((document.getElementById('craft-batches')||{}).value)||0;
+  if(!rid){toast('Select a recipe','error');return;}
+  if(batches<1){toast('Enter batches','error');return;}
+  var r=await api('/api/craft',{recipe_id:rid,batches:batches});
+  if(r&&r.ok){
+    var j=await r.json();
+    toast('Crafted '+j.total_output+' '+j.product+'!');
+    var m=document.getElementById('modal-craft');if(m)m.remove();
+    await load();nav('Production');
+  }else{
+    var j=r?await r.json().catch(function(){return{};}):{};
+    toast(j.error||'Failed','error');
+  }
+}
+
+/* ── STOCK ── */
+function openSellStock(product,currentQty){
+  var cur=D.settings.currency||'R';
+  var html='<div class="modal-overlay open" id="modal-stock"><div class="modal">'+
+    '<div class="modal-title">💰 SELL STOCK — '+esc(product)+'</div>'+
+    '<p style="color:var(--text2);font-size:13px;margin-bottom:14px">In stock: <strong style="color:var(--lime)">'+currentQty+'</strong> units</p>'+
+    '<div class="form-row">'+
+      '<div class="form-group"><label class="form-label">Quantity to Sell</label><input class="form-input" id="sell-qty" type="number" min="1" max="'+currentQty+'" value="1"></div>'+
+      '<div class="form-group"><label class="form-label">Price per Unit ('+cur+')</label><input class="form-input" id="sell-price" type="number" min="0" step="0.01" placeholder="0.00"></div>'+
+    '</div>'+
+    '<p style="font-size:11px;color:var(--text3);margin-bottom:14px">Sale auto-logged as an entry at the commission rate in Settings.</p>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'modal-stock\').remove()">Cancel</button>'+
+    '<button class="btn btn-primary" onclick="submitSellStock(\''+esc(product)+'\')">LOG SALE</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+async function submitSellStock(product){
+  var qty=parseInt((document.getElementById('sell-qty')||{}).value)||0;
+  var price=parseFloat((document.getElementById('sell-price')||{}).value)||0;
+  if(qty<1){toast('Enter quantity','error');return;}
+  var r=await api('/api/stock/sell',{product_name:product,quantity:qty,price_per_unit:price});
+  if(r&&r.ok){toast('Sale logged — stock updated');var m=document.getElementById('modal-stock');if(m)m.remove();await load();nav('Production');}
+  else{var j=r?await r.json().catch(function(){return{};}):{};toast(j.error||'Failed','error');}
+}
+function openAdjustStock(product){
+  var html='<div class="modal-overlay open" id="modal-stock"><div class="modal">'+
+    '<div class="modal-title">📦 ADJUST STOCK — '+esc(product)+'</div>'+
+    '<div class="form-group"><label class="form-label">Adjustment (use negative to remove)</label><input class="form-input" id="adj-qty" type="number" value="0" placeholder="e.g. -5 for write-off, +10 for correction"></div>'+
+    '<div class="form-group"><label class="form-label">Reason</label><input class="form-input" id="adj-reason" placeholder="e.g. Seized, damaged, counting error"></div>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'modal-stock\').remove()">Cancel</button>'+
+    '<button class="btn btn-primary" onclick="submitAdjustStock(\''+esc(product)+'\')">APPLY</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+async function submitAdjustStock(product){
+  var adj=parseInt((document.getElementById('adj-qty')||{}).value)||0;
+  var reason=((document.getElementById('adj-reason')||{}).value||'').trim();
+  if(adj===0){toast('Enter a non-zero adjustment','error');return;}
+  var r=await api('/api/stock/adjust',{product_name:product,adjustment:adj,reason:reason});
+  if(r&&r.ok){toast('Stock adjusted');var m=document.getElementById('modal-stock');if(m)m.remove();await load();nav('Production');}
+  else toast('Failed','error');
 }
 
 load();
