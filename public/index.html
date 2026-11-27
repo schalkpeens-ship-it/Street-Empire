@@ -277,6 +277,32 @@ body{background:var(--bg) url('/texture.webp');color:var(--text);font-family:'In
       <div><div>Settings</div><small>Configure operation</small></div>
     </div>
   </div>
+  <div class="nav-section" id="assets-nav">
+    <div class="nav-item" data-page="Consumables" onclick="nav('Consumables')">
+      <span class="nav-icon">🧴</span>
+      <div><div>Consumables</div><small>Stock &amp; usage</small></div>
+    </div>
+    <div class="nav-item" data-page="Vehicles" onclick="nav('Vehicles')">
+      <span class="nav-icon">🚗</span>
+      <div><div>Vehicles</div><small>Fleet management</small></div>
+    </div>
+    <div class="nav-item" data-page="Ammo" onclick="nav('Ammo')">
+      <span class="nav-icon">🔫</span>
+      <div><div>Ammo</div><small>Rounds &amp; weapons</small></div>
+    </div>
+    <div class="nav-item" data-page="Busts" onclick="nav('Busts')" id="busts-nav-item">
+      <span class="nav-icon">🚔</span>
+      <div><div>Busts</div><small>Arrest records</small></div>
+    </div>
+    <div class="nav-item" data-page="Fuel" onclick="nav('Fuel')">
+      <span class="nav-icon">⛽</span>
+      <div><div>Fuel</div><small>Fill-up log</small></div>
+    </div>
+    <div class="nav-item" data-page="Washing" onclick="nav('Washing')" id="wash-nav-item">
+      <span class="nav-icon">🧺</span>
+      <div><div>Washing</div><small>Laundering fees</small></div>
+    </div>
+  </div>
   <div class="nav-section">
     <div class="nav-item" data-page="Account" onclick="nav('Account')">
       <span class="nav-icon">🔑</span>
@@ -362,7 +388,7 @@ body{background:var(--bg) url('/texture.webp');color:var(--text);font-family:'In
 <div id="toast"></div>
 
 <script>
-var D={user:null,settings:{},entries:[],members:[]};
+var D={user:null,settings:{},entries:[],members:[],consumables:[],vehicles:[],ammo:[],busts:[],fuelLogs:[],washLogs:[]};
 var currentPage='Dashboard';
 
 function tick(){
@@ -429,6 +455,7 @@ async function load(){
   document.getElementById('sidebar').style.display='flex';
   document.getElementById('main').style.display='block';
   document.getElementById('boss-nav').style.display=isBoss?'':'none';
+  document.getElementById('wash-nav-item').style.display=isBoss?'':'none';
   nav(currentPage);
 }
 
@@ -589,7 +616,8 @@ function show(p){
       '<div style="max-width:600px">'+
       '<div class="card" style="margin-bottom:16px"><div class="settings-title">GENERAL</div>'+
       '<div class="form-row"><div class="form-group"><label class="form-label">Operation Name</label><input class="form-input" id="st-name" value="'+esc(cfg.name||'Street Empire')+'"></div><div class="form-group"><label class="form-label">Currency Symbol</label><input class="form-input" id="st-currency" value="'+esc(cfg.currency||'R')+'" maxlength="5"></div></div>'+
-      '<div class="form-row"><div class="form-group"><label class="form-label">Default Commission (%)</label><input class="form-input" id="st-commission" type="number" min="0" max="100" value="'+(cfg.commission||10)+'"></div><div class="form-group"><label class="form-label">Default Salary</label><input class="form-input" id="st-salary" type="number" min="0" value="'+(cfg.salary||500)+'"></div></div></div>'+
+      '<div class="form-row"><div class="form-group"><label class="form-label">Default Commission (%)</label><input class="form-input" id="st-commission" type="number" min="0" max="100" value="'+(cfg.commission||10)+'"></div><div class="form-group"><label class="form-label">Default Salary</label><input class="form-input" id="st-salary" type="number" min="0" value="'+(cfg.salary||500)+'"></div></div>'+
+      '<div class="form-row"><div class="form-group"><label class="form-label">Default Wash Rate (%)</label><input class="form-input" id="st-washrate" type="number" min="0" max="100" step="0.1" value="'+(cfg.washRate!=null?cfg.washRate:15)+'"><p style="font-size:11px;color:var(--text3);margin-top:4px">Default fee % for money laundering — overrideable per wash.</p></div></div></div>'+
       '<div class="card" style="margin-bottom:16px"><div class="settings-title">WEEK CYCLE</div>'+
       '<div class="form-row"><div class="form-group"><label class="form-label">Week Starts On</label><select class="form-select" id="st-weekStart">'+['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map(function(d,i){return '<option value="'+i+'"'+(cfg.weekStart===i?' selected':'')+'>'+d+'</option>';}).join('')+'</select></div>'+
       '<div class="form-group"><label class="form-label">Reset Time (HH:MM)</label><input class="form-input" id="st-weekTime" value="'+(cfg.weekTime||'19:00')+'"></div></div>'+
@@ -616,7 +644,178 @@ function show(p){
       '<button class="btn btn-primary" onclick="changePassword()">UPDATE PASSWORD</button></div></div>';
     return;
   }
+
+  if(p==='Ammo'){
+    if(!isBoss){nav('Dashboard');return;}
+    var totalRounds=D.ammo.reduce(function(a,x){return a+Number(x.rounds);},0);
+    var rows=D.ammo.length?'<table class="data-table"><thead><tr><th>Ammo Type</th><th>Rounds</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+
+      D.ammo.map(function(a){
+        var rounds=Number(a.rounds);
+        var status=rounds===0?'OUT':rounds<50?'LOW':'OK';
+        var badge=rounds===0?'badge-red':rounds<50?'badge-blue':'badge-lime';
+        return '<tr>'+
+          '<td><span style="font-weight:700;font-style:italic">'+esc(a.ammo_type)+'</span></td>'+
+          '<td style="font-size:16px;font-weight:800;font-style:italic;color:'+(rounds===0?'var(--red)':rounds<50?'#90c0ff':'var(--lime)')+'">'+rounds.toLocaleString()+'</td>'+
+          '<td><span class="badge '+badge+'">'+status+'</span></td>'+
+          '<td><div class="member-actions">'+
+            '<button class="btn btn-ghost btn-sm" onclick="openAmmoUse('+a.id+',\''+esc(a.ammo_type)+'\','+rounds+',\'use\')">Log Use</button>'+
+            '<button class="btn btn-warning btn-sm" onclick="openAmmoUse('+a.id+',\''+esc(a.ammo_type)+'\','+rounds+',\'seize\')">Seized/Lost</button>'+
+            '<button class="btn btn-ghost btn-sm" onclick="openAmmoRestock('+a.id+',\''+esc(a.ammo_type)+'\')">Restock</button>'+
+            '<button class="btn btn-danger btn-sm" onclick="deleteAmmo('+a.id+',\''+esc(a.ammo_type)+'\')">Delete</button>'+
+          '</div></td></tr>';
+      }).join('')+'</tbody></table>':
+      '<div class="empty-state"><div class="icon">🔫</div><p>No ammo types registered.</p></div>';
+    main.innerHTML='<div class="page-header"><div class="page-title-row"><div><h2>AMMO INVENTORY</h2><p>'+D.ammo.length+' type'+(D.ammo.length===1?'':'s')+' · '+totalRounds.toLocaleString()+' total rounds</p></div>'+
+      '<button class="btn btn-primary btn-sm" onclick="openAddAmmo()">➕ ADD AMMO TYPE</button></div></div>'+
+      '<div class="card">'+rows+'</div>';
+    return;
+  }
+
+  if(p==='Busts'){
+    if(!isBoss){nav('Dashboard');return;}
+    var active=D.busts.filter(function(b){return !b.reinstated;});
+    var historic=D.busts.filter(function(b){return b.reinstated;});
+    var totalFines=D.busts.reduce(function(a,b){return a+Number(b.fine);},0);
+    var totalCash=D.busts.reduce(function(a,b){return a+Number(b.seized_cash);},0);
+    var bustedMembers=D.members.filter(function(m){return m.active===false;});
+    var activeBustHtml=active.length?'<table class="data-table" style="margin-bottom:0"><thead><tr><th>Member</th><th>Charges</th><th>Fine</th><th>Cash Seized</th><th>Product Seized</th><th>Date</th><th>Action</th></tr></thead><tbody>'+
+      active.map(function(b){return '<tr>'+
+        '<td><span class="badge badge-red">🚨 '+esc(b.member_name||'Unknown')+'</span></td>'+
+        '<td style="font-style:italic;color:var(--text2);max-width:180px">'+esc(b.charges)+'</td>'+
+        '<td style="color:var(--red);font-weight:700">'+cur+fmt(Number(b.fine))+'</td>'+
+        '<td style="color:var(--red)">'+cur+fmt(Number(b.seized_cash))+'</td>'+
+        '<td style="color:var(--text3);font-size:12px">'+(b.seized_product?esc(b.seized_product):'—')+'</td>'+
+        '<td style="color:var(--text3);font-size:12px">'+timeAgo(b.created)+'</td>'+
+        '<td><button class="btn btn-primary btn-sm" onclick="reinstateMember('+b.id+',\''+esc(b.member_name||'')+'\')">Reinstate</button></td>'+
+      '</tr>';}).join('')+'</tbody></table>':
+      '<div class="empty-state"><div class="icon">✅</div><p>No active busts — crew is clean.</p></div>';
+    var histHtml=historic.length?'<table class="data-table"><thead><tr><th>Member</th><th>Charges</th><th>Fine</th><th>Date</th></tr></thead><tbody>'+
+      historic.map(function(b){return '<tr>'+
+        '<td style="color:var(--text2)">'+esc(b.member_name||'Unknown')+'</td>'+
+        '<td style="color:var(--text3);font-size:12px;font-style:italic">'+esc(b.charges)+'</td>'+
+        '<td style="color:var(--text3)">'+cur+fmt(Number(b.fine))+'</td>'+
+        '<td style="color:var(--text3);font-size:12px">'+timeAgo(b.created)+'</td>'+
+      '</tr>';}).join('')+'</tbody></table>':
+      '<div class="empty-state" style="padding:12px 0"><p style="color:var(--text3);font-size:12px">No historical busts.</p></div>';
+    main.innerHTML='<div class="page-header"><div class="page-title-row"><div><h2>BUST RECORDS</h2><p>'+D.busts.length+' total · '+active.length+' active</p></div>'+
+      '<button class="btn btn-primary btn-sm" onclick="openLogBust()" style="background:var(--red);color:#fff;border-color:var(--red)">🚔 LOG BUST</button></div></div>'+
+      '<div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">'+
+        '<div class="card stat-card c-red"><div class="stat-icon">🚨</div><div class="stat-label">Currently Busted</div><div class="stat-value red">'+active.length+'</div></div>'+
+        '<div class="card stat-card c-red"><div class="stat-icon">💸</div><div class="stat-label">Total Fines Paid</div><div class="stat-value red">'+cur+fmt(totalFines)+'</div></div>'+
+        '<div class="card stat-card c-red"><div class="stat-icon">💰</div><div class="stat-label">Cash Seized</div><div class="stat-value red">'+cur+fmt(totalCash)+'</div></div>'+
+      '</div>'+
+      '<div class="card row-gap"><div class="card-header"><div class="card-title" style="color:var(--red)">ACTIVE BUSTS</div></div>'+activeBustHtml+'</div>'+
+      '<div class="card"><div class="card-header"><div class="card-title">HISTORICAL</div></div>'+histHtml+'</div>';
+    return;
+  }
+
+  if(p==='Consumables'){
+    var statusColors={'available':'badge-lime','low':'badge-blue','out':'badge-red'};
+    var totalValue=D.consumables.reduce(function(a,c){return a+Number(c.quantity)*Number(c.cost_per_unit);},0);
+    var rows=D.consumables.length?'<table class="data-table" id="cons-table"><thead><tr><th>Item</th><th>Qty</th><th>Cost/Unit</th><th>Total Value</th><th>Assigned To</th>'+(isBoss?'<th>Actions</th>':'')+'</tr></thead><tbody>'+
+      D.consumables.map(function(c){
+        var stock=Number(c.quantity),status=stock===0?'out':stock<5?'low':'available';
+        return '<tr><td><span style="font-weight:700;font-style:italic">'+esc(c.name)+'</span></td>'+
+          '<td><span class="badge '+(status==='out'?'badge-red':status==='low'?'badge-blue':'badge-lime')+'">'+(stock===0?'OUT':stock<5?'LOW ('+stock+')':stock)+'</span></td>'+
+          '<td style="color:var(--text2)">'+cur+fmt(Number(c.cost_per_unit))+'</td>'+
+          '<td style="color:var(--lime);font-weight:800;font-style:italic">'+cur+fmt(stock*Number(c.cost_per_unit))+'</td>'+
+          '<td style="color:var(--text3)">'+(c.assigned_to_name?esc(c.assigned_to_name):'—')+'</td>'+
+          (isBoss?'<td><div class="member-actions">'+
+            '<button class="btn btn-ghost btn-sm" onclick="openEditConsumable('+c.id+',\''+esc(c.name)+'\','+c.cost_per_unit+','+c.quantity+','+(c.assigned_to||0)+')">Edit</button>'+
+            '<button class="btn btn-danger btn-sm" onclick="deleteConsumable('+c.id+',\''+esc(c.name)+'\')">Delete</button>'+
+            '</div></td>':'')+'</tr>'+
+          '<tr><td colspan="'+(isBoss?6:5)+'"><div class="use-row" style="padding:4px 0 8px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.04)">'+
+          '<span style="font-size:11px;color:var(--text3)">Use:</span>'+
+          '<input id="use-qty-'+c.id+'" class="form-input" type="number" min="1" value="1" style="width:70px;padding:5px 8px;font-size:12px">'+
+          '<button class="btn btn-ghost btn-sm" onclick="useConsumable('+c.id+')">Log Usage</button></div></td></tr>';
+      }).join('')+'</tbody></table>':
+      '<div class="empty-state"><div class="icon">🧴</div><p>No consumables yet.</p></div>';
+    main.innerHTML='<div class="page-header"><div class="page-title-row"><div><h2>CONSUMABLES</h2><p>'+D.consumables.length+' items · Total value: '+cur+fmt(totalValue)+'</p></div>'+(isBoss?'<button class="btn btn-primary btn-sm" onclick="openAddConsumable()">➕ ADD ITEM</button>':'')+'</div></div>'+
+      '<div class="card">'+rows+'</div>';
+    return;
+  }
+
+  if(p==='Vehicles'){
+    var statusBadge={'available':'badge-lime','in-use':'badge-blue','damaged':'badge-red','off-road':'badge-gray'};
+    var statusLabel={'available':'Available','in-use':'In Use','damaged':'Damaged','off-road':'Off Road'};
+    var rows=D.vehicles.length?'<table class="data-table"><thead><tr><th>Vehicle</th><th>Plate</th><th>Type</th><th>Status</th><th>Driver</th><th>Actions</th></tr></thead><tbody>'+
+      D.vehicles.map(function(v){
+        return '<tr>'+
+          '<td><span style="font-weight:700;font-style:italic">'+esc(v.name)+'</span></td>'+
+          '<td style="color:var(--text2);font-family:monospace">'+(v.plate?esc(v.plate):'—')+'</td>'+
+          '<td style="color:var(--text3)">'+(v.type?esc(v.type):'—')+'</td>'+
+          '<td><span class="badge '+(statusBadge[v.status]||'badge-gray')+'">'+(statusLabel[v.status]||v.status)+'</span></td>'+
+          '<td style="color:var(--text3)">'+(v.assigned_to_name?esc(v.assigned_to_name):'Unassigned')+'</td>'+
+          '<td><div class="member-actions">'+
+          '<button class="btn btn-ghost btn-sm" onclick="openServiceLog('+v.id+',\''+esc(v.name)+'\')">Service Log</button>'+
+          (isBoss?'<button class="btn btn-ghost btn-sm" onclick="openEditVehicle('+v.id+',\''+esc(v.name)+'\',\''+esc(v.plate||'')+'\',\''+esc(v.type||'')+'\',\''+v.status+'\','+(v.assigned_to||0)+')">Edit</button>'+
+          '<button class="btn btn-danger btn-sm" onclick="deleteVehicle('+v.id+',\''+esc(v.name)+'\')">Delete</button>':'')+
+          '</div></td></tr>';
+      }).join('')+'</tbody></table>':
+      '<div class="empty-state"><div class="icon">🚗</div><p>No vehicles registered yet.</p></div>';
+    main.innerHTML='<div class="page-header"><div class="page-title-row"><div><h2>FLEET</h2><p>'+D.vehicles.length+' vehicle'+(D.vehicles.length===1?'':'s')+'</p></div>'+(isBoss?'<button class="btn btn-primary btn-sm" onclick="openAddVehicle()">➕ ADD VEHICLE</button>':'')+'</div></div>'+
+      '<div class="card">'+rows+'</div>'+
+      '<div class="modal-overlay" id="modal-service-log">'+
+        '<div class="modal">'+
+          '<div class="modal-title">🔧 SERVICE LOG — <span id="slog-vname" style="color:var(--text2)"></span></div>'+
+          '<input type="hidden" id="slog-vid">'+
+          '<div class="form-group"><label class="form-label">Log Entry</label><input class="form-input" id="slog-note" placeholder="e.g. Oil change, tyre replaced, panel damage..."></div>'+
+          '<button class="btn btn-primary btn-full" onclick="submitServiceLog()" style="margin-bottom:14px">ADD ENTRY</button>'+
+          '<div id="slog-list" style="max-height:300px;overflow-y:auto"></div>'+
+          '<div class="modal-footer"><button class="btn btn-ghost" onclick="closeServiceLog()">Close</button></div>'+
+        '</div>'+
+      '</div>';
+    document.querySelector('#modal-service-log').addEventListener('click',function(e){if(e.target===this)closeServiceLog();});
+    return;
+  }
 }
+
+  if(p==='Fuel'){
+    var totalFuel=D.fuelLogs.reduce(function(a,f){return a+Number(f.total_cost);},0);
+    var totalLitres=D.fuelLogs.reduce(function(a,f){return a+Number(f.litres);},0);
+    var rows=D.fuelLogs.length?'<table class="data-table"><thead><tr><th>Vehicle</th><th>Litres</th><th>Cost/L ('+cur+')</th><th>Total ('+cur+')</th><th>By</th><th>Notes</th><th>When</th></tr></thead><tbody>'+
+      D.fuelLogs.map(function(f){return '<tr>'+
+        '<td><span style="font-weight:700;font-style:italic">'+esc(f.vehicle_name||'Unknown')+'</span></td>'+
+        '<td style="color:var(--text2)">'+Number(f.litres).toFixed(1)+'L</td>'+
+        '<td style="color:var(--text3)">'+cur+fmt(Number(f.cost_per_litre))+'</td>'+
+        '<td style="color:var(--red);font-weight:800;font-style:italic">'+cur+fmt(Number(f.total_cost))+'</td>'+
+        '<td style="color:var(--text3)">'+esc(f.username||'—')+'</td>'+
+        '<td style="color:var(--text3);font-size:12px">'+(f.notes?esc(f.notes):'—')+'</td>'+
+        '<td style="color:var(--text3);font-size:12px">'+timeAgo(f.created)+'</td>'+
+      '</tr>';}).join('')+'</tbody></table>':
+      '<div class="empty-state"><div class="icon">⛽</div><p>No fill-ups logged yet.</p></div>';
+    main.innerHTML='<div class="page-header"><div class="page-title-row"><div><h2>FUEL LOG</h2><p>'+D.fuelLogs.length+' fill-up'+(D.fuelLogs.length===1?'':'s')+' · '+totalLitres.toFixed(1)+'L · '+cur+fmt(totalFuel)+' spent</p></div>'+
+      '<button class="btn btn-primary btn-sm" onclick="openLogFuel()">➕ LOG FILL-UP</button></div></div>'+
+      '<div class="card">'+rows+'</div>';
+    return;
+  }
+
+  if(p==='Washing'){
+    if(!isBoss){nav('Dashboard');return;}
+    var totalDirty=D.washLogs.reduce(function(a,w){return a+Number(w.dirty_amount);},0);
+    var totalFees=D.washLogs.reduce(function(a,w){return a+Number(w.fee);},0);
+    var totalClean=D.washLogs.reduce(function(a,w){return a+Number(w.clean_amount);},0);
+    var rows=D.washLogs.length?'<table class="data-table"><thead><tr><th>Dirty In ('+cur+')</th><th>Rate</th><th>Fee ('+cur+')</th><th>Clean Out ('+cur+')</th><th>By</th><th>Notes</th><th>When</th></tr></thead><tbody>'+
+      D.washLogs.map(function(w){return '<tr>'+
+        '<td style="color:var(--text2);font-weight:700">'+cur+fmt(Number(w.dirty_amount))+'</td>'+
+        '<td><span class="badge badge-purple">'+Number(w.wash_rate).toFixed(1)+'%</span></td>'+
+        '<td style="color:var(--red);font-weight:700">'+cur+fmt(Number(w.fee))+'</td>'+
+        '<td style="color:var(--lime);font-weight:800;font-style:italic">'+cur+fmt(Number(w.clean_amount))+'</td>'+
+        '<td style="color:var(--text3)">'+esc(w.username||'—')+'</td>'+
+        '<td style="color:var(--text3);font-size:12px">'+(w.notes?esc(w.notes):'—')+'</td>'+
+        '<td style="color:var(--text3);font-size:12px">'+timeAgo(w.created)+'</td>'+
+      '</tr>';}).join('')+'</tbody></table>':
+      '<div class="empty-state"><div class="icon">🧺</div><p>No washes logged yet.</p></div>';
+    main.innerHTML='<div class="page-header"><div class="page-title-row"><div><h2>MONEY LAUNDERING</h2><p>'+D.washLogs.length+' wash'+(D.washLogs.length===1?'':'es')+' · '+cur+fmt(totalFees)+' in fees · '+cur+fmt(totalClean)+' clean</p></div>'+
+      '<button class="btn btn-primary btn-sm" onclick="openLogWash()">➕ LOG WASH</button></div></div>'+
+      '<div class="stat-grid" style="grid-template-columns:repeat(3,1fr)">'+
+        '<div class="card stat-card c-purple"><div class="stat-icon">💸</div><div class="stat-label">Total Dirty In</div><div class="stat-value" style="color:var(--text2)">'+cur+fmt(totalDirty)+'</div></div>'+
+        '<div class="card stat-card c-red"><div class="stat-icon">💰</div><div class="stat-label">Total Fees Paid</div><div class="stat-value red">'+cur+fmt(totalFees)+'</div></div>'+
+        '<div class="card stat-card c-green"><div class="stat-icon">✅</div><div class="stat-label">Total Clean Out</div><div class="stat-value">'+cur+fmt(totalClean)+'</div></div>'+
+      '</div>'+
+      '<div class="card">'+rows+'</div>';
+    return;
+  }
 
 function filterEntries(type,btn){
   document.querySelectorAll('.filter-chip').forEach(function(c){c.classList.remove('active');});btn.classList.add('active');
@@ -708,11 +907,373 @@ async function saveSettings(){
   var cfg={name:document.getElementById('st-name').value.trim()||'Street Empire',currency:document.getElementById('st-currency').value.trim()||'R',
     commission:parseFloat(document.getElementById('st-commission').value)||0,salary:parseFloat(document.getElementById('st-salary').value)||0,
     weekStart:parseInt(document.getElementById('st-weekStart').value),utcOffset:parseInt(document.getElementById('st-utcOffset').value),
-    weekTime:document.getElementById('st-weekTime').value,products:getProducts()};
+    weekTime:document.getElementById('st-weekTime').value,products:getProducts(),
+    washRate:parseFloat(document.getElementById('st-washrate').value)||15};
   var r=await api('/api/settings',cfg);
   if(r&&r.ok){toast('Settings saved!');await load();nav('Settings');}else toast('Failed','error');
 }
 document.querySelectorAll('.modal-overlay').forEach(function(el){el.addEventListener('click',function(e){if(e.target===el)el.classList.remove('open');});});
+
+/* ── CONSUMABLES ── */
+function openAddConsumable(){
+  var html='<div class="modal-overlay open" id="modal-cons"><div class="modal">'+
+    '<div class="modal-title">ADD CONSUMABLE</div>'+
+    '<div class="form-group"><label class="form-label">Item Name</label><input class="form-input" id="cons-name" placeholder="e.g. Zip-lock bags"></div>'+
+    '<div class="form-row">'+
+      '<div class="form-group"><label class="form-label">Cost per Unit ('+esc(D.settings.currency||'R')+')</label><input class="form-input" id="cons-cpu" type="number" min="0" step="0.01" value="0"></div>'+
+      '<div class="form-group"><label class="form-label">Initial Quantity</label><input class="form-input" id="cons-qty" type="number" min="0" value="0"></div>'+
+    '</div>'+
+    '<div class="form-group"><label class="form-label">Assigned To (optional)</label><select class="form-select" id="cons-asgn">'+
+      '<option value="">— Unassigned —</option>'+D.members.filter(function(m){return m.active!==false;}).map(function(m){return '<option value="'+m.id+'">'+esc(m.username)+'</option>';}).join('')+
+    '</select></div>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'modal-cons\').remove()">Cancel</button>'+
+    '<button class="btn btn-primary" onclick="saveConsumable(0)">ADD</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+function openEditConsumable(id,name,cpu,qty,asgn){
+  var html='<div class="modal-overlay open" id="modal-cons"><div class="modal">'+
+    '<div class="modal-title">EDIT CONSUMABLE</div>'+
+    '<input type="hidden" id="cons-id" value="'+id+'">'+
+    '<div class="form-group"><label class="form-label">Item Name</label><input class="form-input" id="cons-name" value="'+esc(name)+'"></div>'+
+    '<div class="form-row">'+
+      '<div class="form-group"><label class="form-label">Cost per Unit ('+esc(D.settings.currency||'R')+')</label><input class="form-input" id="cons-cpu" type="number" min="0" step="0.01" value="'+cpu+'"></div>'+
+      '<div class="form-group"><label class="form-label">Quantity</label><input class="form-input" id="cons-qty" type="number" min="0" value="'+qty+'"></div>'+
+    '</div>'+
+    '<div class="form-group"><label class="form-label">Assigned To (optional)</label><select class="form-select" id="cons-asgn">'+
+      '<option value="">— Unassigned —</option>'+D.members.filter(function(m){return m.active!==false;}).map(function(m){return '<option value="'+m.id+'"'+(m.id===asgn?' selected':'')+'>'+esc(m.username)+'</option>';}).join('')+
+    '</select></div>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'modal-cons\').remove()">Cancel</button>'+
+    '<button class="btn btn-primary" onclick="saveConsumable('+id+')">SAVE</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+async function saveConsumable(id){
+  var name=(document.getElementById('cons-name').value||'').trim();
+  var cpu=parseFloat(document.getElementById('cons-cpu').value)||0;
+  var qty=parseInt(document.getElementById('cons-qty').value)||0;
+  var asgn=parseInt(document.getElementById('cons-asgn').value)||null;
+  if(!name){toast('Name required','error');return;}
+  var endpoint=id?'/api/consumable/edit':'/api/consumable';
+  var body=id?{id:id,name:name,cost_per_unit:cpu,quantity:qty,assigned_to:asgn}:{name:name,cost_per_unit:cpu,quantity:qty,assigned_to:asgn};
+  var r=await api(endpoint,body);
+  if(r&&r.ok){toast(id?'Updated!':'Added!');var m=document.getElementById('modal-cons');if(m)m.remove();await load();nav('Consumables');}
+  else toast('Failed','error');
+}
+async function deleteConsumable(id,name){
+  if(!confirm('Delete "'+name+'"? This cannot be undone.'))return;
+  var r=await api('/api/consumable/delete',{id:id});
+  if(r&&r.ok){toast('Deleted');await load();nav('Consumables');}else toast('Failed','error');
+}
+async function useConsumable(id){
+  var inp=document.getElementById('use-qty-'+id);
+  var amount=parseInt(inp?inp.value:1)||1;
+  var r=await api('/api/consumable/use',{id:id,amount:amount});
+  if(r&&r.ok){var j=await r.json();toast('Used '+amount+' — '+j.remaining+' remaining');await load();nav('Consumables');}
+  else toast('Failed','error');
+}
+
+/* ── VEHICLES ── */
+function openAddVehicle(){
+  var html='<div class="modal-overlay open" id="modal-veh"><div class="modal">'+
+    '<div class="modal-title">ADD VEHICLE</div>'+
+    '<div class="form-group"><label class="form-label">Vehicle Name</label><input class="form-input" id="veh-name" placeholder="e.g. White Golf 7"></div>'+
+    '<div class="form-row">'+
+      '<div class="form-group"><label class="form-label">Plate / ID</label><input class="form-input" id="veh-plate" placeholder="e.g. GP 123-456"></div>'+
+      '<div class="form-group"><label class="form-label">Type</label><input class="form-input" id="veh-type" placeholder="e.g. Sedan, SUV, Bike"></div>'+
+    '</div>'+
+    '<div class="form-group"><label class="form-label">Assigned Driver (optional)</label><select class="form-select" id="veh-asgn">'+
+      '<option value="">— Unassigned —</option>'+D.members.filter(function(m){return m.active!==false;}).map(function(m){return '<option value="'+m.id+'">'+esc(m.username)+'</option>';}).join('')+
+    '</select></div>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'modal-veh\').remove()">Cancel</button>'+
+    '<button class="btn btn-primary" onclick="saveVehicle(0)">ADD</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+function openEditVehicle(id,name,plate,type,status,asgn){
+  var statusOpts=['available','in-use','damaged','off-road'];
+  var statusLabel={'available':'Available','in-use':'In Use','damaged':'Damaged','off-road':'Off Road'};
+  var html='<div class="modal-overlay open" id="modal-veh"><div class="modal">'+
+    '<div class="modal-title">EDIT VEHICLE</div>'+
+    '<input type="hidden" id="veh-id" value="'+id+'">'+
+    '<div class="form-group"><label class="form-label">Vehicle Name</label><input class="form-input" id="veh-name" value="'+esc(name)+'"></div>'+
+    '<div class="form-row">'+
+      '<div class="form-group"><label class="form-label">Plate / ID</label><input class="form-input" id="veh-plate" value="'+esc(plate)+'"></div>'+
+      '<div class="form-group"><label class="form-label">Type</label><input class="form-input" id="veh-type" value="'+esc(type)+'"></div>'+
+    '</div>'+
+    '<div class="form-row">'+
+      '<div class="form-group"><label class="form-label">Status</label><select class="form-select" id="veh-status">'+statusOpts.map(function(s){return '<option value="'+s+'"'+(s===status?' selected':'')+'>'+statusLabel[s]+'</option>';}).join('')+'</select></div>'+
+      '<div class="form-group"><label class="form-label">Assigned Driver</label><select class="form-select" id="veh-asgn">'+
+        '<option value="">— Unassigned —</option>'+D.members.filter(function(m){return m.active!==false;}).map(function(m){return '<option value="'+m.id+'"'+(m.id===asgn?' selected':'')+'>'+esc(m.username)+'</option>';}).join('')+
+      '</select></div>'+
+    '</div>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'modal-veh\').remove()">Cancel</button>'+
+    '<button class="btn btn-primary" onclick="saveVehicle('+id+')">SAVE</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+async function saveVehicle(id){
+  var name=(document.getElementById('veh-name').value||'').trim();
+  var plate=(document.getElementById('veh-plate').value||'').trim();
+  var type=(document.getElementById('veh-type').value||'').trim();
+  var status=id?(document.getElementById('veh-status').value||'available'):'available';
+  var asgn=parseInt(document.getElementById('veh-asgn').value)||null;
+  if(!name){toast('Name required','error');return;}
+  var endpoint=id?'/api/vehicle/edit':'/api/vehicle';
+  var body=id?{id:id,name:name,plate:plate,type:type,status:status,assigned_to:asgn}:{name:name,plate:plate,type:type,assigned_to:asgn};
+  var r=await api(endpoint,body);
+  if(r&&r.ok){toast(id?'Updated!':'Added!');var m=document.getElementById('modal-veh');if(m)m.remove();await load();nav('Vehicles');}
+  else toast('Failed','error');
+}
+async function deleteVehicle(id,name){
+  if(!confirm('Delete "'+name+'" and its service log? Cannot be undone.'))return;
+  var r=await api('/api/vehicle/delete',{id:id});
+  if(r&&r.ok){toast('Deleted');await load();nav('Vehicles');}else toast('Failed','error');
+}
+async function openServiceLog(id,name){
+  document.getElementById('slog-vid').value=id;
+  document.getElementById('slog-vname').textContent=name;
+  document.getElementById('slog-note').value='';
+  document.getElementById('slog-list').innerHTML='<p style="color:var(--text3);font-size:12px">Loading...</p>';
+  document.getElementById('modal-service-log').classList.add('open');
+  loadServiceLog(id);
+}
+function closeServiceLog(){
+  var m=document.getElementById('modal-service-log');
+  if(m)m.classList.remove('open');
+}
+async function loadServiceLog(id){
+  var r=await api('/api/vehicle/'+id+'/service');
+  if(!r||!r.ok){var el2=document.getElementById('slog-list');if(el2)el2.innerHTML='<p style="color:var(--red)">Failed to load</p>';return;}
+  var j=await r.json();
+  var el=document.getElementById('slog-list');
+  if(!el)return;
+  el.innerHTML=j.logs.length?j.logs.map(function(l){
+    return '<div style="padding:9px 0;border-bottom:1px solid rgba(255,255,255,.07)">'+
+      '<div style="display:flex;justify-content:space-between;margin-bottom:3px">'+
+      '<span style="font-size:12px;color:var(--lime);font-weight:700">'+esc(l.username||'Unknown')+'</span>'+
+      '<span style="font-size:11px;color:var(--text3)">'+timeAgo(l.created)+'</span></div>'+
+      '<div style="font-size:13px;color:var(--text)">'+esc(l.note)+'</div></div>';
+  }).join(''):
+  '<div class="empty-state" style="padding:16px 0"><div class="icon">🔧</div><p>No service entries yet</p></div>';
+}
+async function submitServiceLog(){
+  var id=Number(document.getElementById('slog-vid').value);
+  var note=(document.getElementById('slog-note').value||'').trim();
+  if(!note){toast('Enter a note','error');return;}
+  var r=await api('/api/vehicle/service',{vehicle_id:id,note:note});
+  if(r&&r.ok){toast('Entry logged');document.getElementById('slog-note').value='';loadServiceLog(id);}
+  else toast('Failed','error');
+}
+
+/* ── AMMO ── */
+function openAddAmmo(){
+  var html='<div class="modal-overlay open" id="modal-ammo"><div class="modal">'+
+    '<div class="modal-title">ADD AMMO TYPE</div>'+
+    '<div class="form-group"><label class="form-label">Ammo Type / Calibre</label><input class="form-input" id="ammo-type" placeholder="e.g. 9mm, .45 ACP, 5.56mm, 12-gauge"></div>'+
+    '<div class="form-group"><label class="form-label">Initial Rounds</label><input class="form-input" id="ammo-rounds" type="number" min="0" value="0"></div>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'modal-ammo\').remove()">Cancel</button>'+
+    '<button class="btn btn-primary" onclick="saveAmmoAdd()">ADD</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+async function saveAmmoAdd(){
+  var type=(document.getElementById('ammo-type').value||'').trim();
+  var rounds=parseInt(document.getElementById('ammo-rounds').value)||0;
+  if(!type){toast('Ammo type required','error');return;}
+  var r=await api('/api/ammo',{ammo_type:type,rounds:rounds});
+  if(r&&r.ok){toast('Ammo added!');var m=document.getElementById('modal-ammo');if(m)m.remove();await load();nav('Ammo');}
+  else toast('Failed','error');
+}
+function openAmmoRestock(id,type){
+  var html='<div class="modal-overlay open" id="modal-ammo"><div class="modal">'+
+    '<div class="modal-title">RESTOCK — '+esc(type)+'</div>'+
+    '<div class="form-group"><label class="form-label">Rounds to Add</label><input class="form-input" id="ammo-restock-qty" type="number" min="1" value="50"></div>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'modal-ammo\').remove()">Cancel</button>'+
+    '<button class="btn btn-primary" onclick="saveAmmoRestock('+id+')">ADD ROUNDS</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+async function saveAmmoRestock(id){
+  var rounds=parseInt(document.getElementById('ammo-restock-qty').value)||0;
+  if(rounds<1){toast('Enter a valid amount','error');return;}
+  // Restock = add via ammo endpoint (upsert adds rounds)
+  var ammoRow=D.ammo.find(function(a){return a.id===id;});
+  if(!ammoRow)return;
+  var r=await api('/api/ammo',{ammo_type:ammoRow.ammo_type,rounds:rounds});
+  if(r&&r.ok){toast('Restocked +'+rounds+' rounds');var m=document.getElementById('modal-ammo');if(m)m.remove();await load();nav('Ammo');}
+  else toast('Failed','error');
+}
+function openAmmoUse(id,type,current,mode){
+  var isSeize=mode==='seize';
+  var html='<div class="modal-overlay open" id="modal-ammo"><div class="modal">'+
+    '<div class="modal-title">'+(isSeize?'⚠️ SEIZED / LOST':'LOG USE')+' — '+esc(type)+'</div>'+
+    '<p style="font-size:12px;color:var(--text3);margin-bottom:14px">Current stock: <strong style="color:var(--lime)">'+current.toLocaleString()+' rounds</strong></p>'+
+    '<div class="form-group"><label class="form-label">Rounds '+(isSeize?'Seized/Destroyed':'Used')+'</label><input class="form-input" id="ammo-use-qty" type="number" min="1" max="'+current+'" value="1"></div>'+
+    '<div class="form-group"><label class="form-label">Reason / Notes</label><input class="form-input" id="ammo-use-reason" placeholder="'+(isSeize?'e.g. Seized in raid, dropped at scene':'e.g. Training, confrontation, job')+'"></div>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'modal-ammo\').remove()">Cancel</button>'+
+    '<button class="btn '+(isSeize?'btn-danger':'btn-primary')+'" onclick="submitAmmoUse('+id+',\''+mode+'\')">CONFIRM</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+async function submitAmmoUse(id,mode){
+  var amount=parseInt(document.getElementById('ammo-use-qty').value)||0;
+  var reason=(document.getElementById('ammo-use-reason').value||'').trim();
+  if(amount<1){toast('Enter a valid amount','error');return;}
+  var endpoint=mode==='seize'?'/api/ammo/seize':'/api/ammo/use';
+  var r=await api(endpoint,{id:id,amount:amount,reason:reason||undefined});
+  if(r&&r.ok){var j=await r.json();toast(amount+' rounds removed — '+j.remaining.toLocaleString()+' remaining');var m=document.getElementById('modal-ammo');if(m)m.remove();await load();nav('Ammo');}
+  else toast('Failed','error');
+}
+async function deleteAmmo(id,type){
+  if(!confirm('Delete "'+type+'" and all its logs? Cannot be undone.'))return;
+  var r=await api('/api/ammo/delete',{id:id});
+  if(r&&r.ok){toast('Deleted');await load();nav('Ammo');}else toast('Failed','error');
+}
+
+/* ── BUSTS ── */
+function openLogBust(){
+  var memberOptions=D.members.filter(function(m){return m.active!==false;}).map(function(m){return '<option value="'+m.id+'">'+esc(m.username)+'</option>';}).join('');
+  var vehicleOptions=D.vehicles.filter(function(v){return v.status!=='seized';}).map(function(v){return '<option value="'+v.id+'">'+esc(v.name)+(v.plate?' ('+esc(v.plate)+')':'')+'</option>';}).join('');
+  var ammoOptions=D.ammo.map(function(a){return '<option value="'+a.id+'">'+esc(a.ammo_type)+' ('+Number(a.rounds).toLocaleString()+' rds)</option>';}).join('');
+  var cur=D.settings.currency||'R';
+  var html='<div class="modal-overlay open" id="modal-bust"><div class="modal" style="max-width:520px;max-height:90vh;overflow-y:auto">'+
+    '<div class="modal-title" style="color:var(--red)">🚔 LOG BUST</div>'+
+    '<div class="form-group"><label class="form-label">Who Was Arrested</label><select class="form-select" id="bust-member">'+memberOptions+'</select></div>'+
+    '<div class="form-group"><label class="form-label">Charges / Reason</label><input class="form-input" id="bust-charges" placeholder="e.g. Possession, trafficking, firearms"></div>'+
+    '<div class="form-row">'+
+      '<div class="form-group"><label class="form-label">Fine Amount ('+cur+')</label><input class="form-input" id="bust-fine" type="number" min="0" value="0"></div>'+
+      '<div class="form-group"><label class="form-label">Cash Seized ('+cur+')</label><input class="form-input" id="bust-cash" type="number" min="0" value="0"></div>'+
+    '</div>'+
+    '<div class="form-group"><label class="form-label">Product Seized (describe)</label><input class="form-input" id="bust-product" placeholder="e.g. 200g weed, 50 tabs MDMA"></div>'+
+    (ammoOptions?'<div class="form-group"><label class="form-label">Ammo Seized (select, holds all rounds to 0)</label><select class="form-select" id="bust-ammo" multiple style="height:80px">'+ammoOptions+'</select></div>':'')+
+    (vehicleOptions?'<div class="form-group"><label class="form-label">Vehicles Seized (select)</label><select class="form-select" id="bust-vehicles" multiple style="height:80px">'+vehicleOptions+'</select></div>':'')+
+    '<div class="form-group"><label class="form-label">Additional Notes</label><input class="form-input" id="bust-notes" placeholder="Any other details"></div>'+
+    '<p style="font-size:11px;color:var(--text3);margin-bottom:14px">⚠️ Member will be auto-deactivated until you reinstate them. Fine logged as an expense.</p>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'modal-bust\').remove()">Cancel</button>'+
+    '<button class="btn btn-danger" onclick="submitBust()">LOG BUST</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+function getMultiSelect(id){
+  var el=document.getElementById(id);
+  if(!el)return [];
+  return Array.from(el.selectedOptions).map(function(o){return parseInt(o.value);}).filter(Boolean);
+}
+async function submitBust(){
+  var member_id=parseInt((document.getElementById('bust-member')||{}).value)||0;
+  var charges=((document.getElementById('bust-charges')||{}).value||'').trim();
+  var fine=parseFloat((document.getElementById('bust-fine')||{}).value)||0;
+  var seized_cash=parseFloat((document.getElementById('bust-cash')||{}).value)||0;
+  var seized_product=((document.getElementById('bust-product')||{}).value||'').trim();
+  var notes=((document.getElementById('bust-notes')||{}).value||'').trim();
+  var seized_ammo=getMultiSelect('bust-ammo');
+  var seized_vehicles=getMultiSelect('bust-vehicles');
+  if(!member_id){toast('Select a member','error');return;}
+  if(!charges){toast('Enter charges','error');return;}
+  var r=await api('/api/bust',{member_id:member_id,charges:charges,fine:fine,seized_cash:seized_cash,seized_product:seized_product,notes:notes,seized_weapon_ids:seized_ammo,seized_vehicle_ids:seized_vehicles});
+  if(r&&r.ok){
+    toast('Bust logged — member deactivated');
+    var m=document.getElementById('modal-bust');if(m)m.remove();
+    await load();nav('Busts');
+  }else toast('Failed','error');
+}
+async function reinstateMember(bust_id,name){
+  if(!confirm('Reinstate '+name+'? They will be able to log in again.'))return;
+  var r=await api('/api/bust/reinstate',{bust_id:bust_id});
+  if(r&&r.ok){toast(name+' reinstated');await load();nav('Busts');}else toast('Failed','error');
+}
+
+/* ── FUEL ── */
+function openLogFuel(){
+  var cur=D.settings.currency||'R';
+  var vehicleOptions=D.vehicles.map(function(v){return '<option value="'+v.id+'">'+esc(v.name)+(v.plate?' ('+esc(v.plate)+')':'')+'</option>';}).join('');
+  if(!vehicleOptions){toast('Add a vehicle first','error');return;}
+  var html='<div class="modal-overlay open" id="modal-fuel"><div class="modal">'+
+    '<div class="modal-title">⛽ LOG FILL-UP</div>'+
+    '<div class="form-group"><label class="form-label">Vehicle</label><select class="form-select" id="fuel-vehicle">'+vehicleOptions+'</select></div>'+
+    '<div class="form-row">'+
+      '<div class="form-group"><label class="form-label">Litres</label><input class="form-input" id="fuel-litres" type="number" min="0.1" step="0.1" placeholder="e.g. 45.5"></div>'+
+      '<div class="form-group"><label class="form-label">Cost per Litre ('+cur+')</label><input class="form-input" id="fuel-cpl" type="number" min="0" step="0.01" placeholder="e.g. 21.50" oninput="calcFuelTotal()"></div>'+
+    '</div>'+
+    '<div id="fuel-total-preview" style="font-size:12px;color:var(--text3);margin-bottom:14px;padding:10px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:var(--radius-sm)">Total: <strong id="fuel-total-val" style="color:var(--lime)">'+cur+'0.00</strong> (auto-logged as expense)</div>'+
+    '<div class="form-group"><label class="form-label">Notes (optional)</label><input class="form-input" id="fuel-notes" placeholder="e.g. BP station on N1, full tank"></div>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'modal-fuel\').remove()">Cancel</button>'+
+    '<button class="btn btn-primary" onclick="submitFuel()">LOG FILL-UP</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+  document.getElementById('fuel-litres').addEventListener('input',calcFuelTotal);
+}
+function calcFuelTotal(){
+  var l=parseFloat((document.getElementById('fuel-litres')||{}).value)||0;
+  var c=parseFloat((document.getElementById('fuel-cpl')||{}).value)||0;
+  var el=document.getElementById('fuel-total-val');
+  if(el)el.textContent=(D.settings.currency||'R')+fmt(l*c);
+}
+async function submitFuel(){
+  var vehicle_id=parseInt((document.getElementById('fuel-vehicle')||{}).value)||0;
+  var litres=parseFloat((document.getElementById('fuel-litres')||{}).value)||0;
+  var cost_per_litre=parseFloat((document.getElementById('fuel-cpl')||{}).value)||0;
+  var notes=((document.getElementById('fuel-notes')||{}).value||'').trim();
+  if(!vehicle_id){toast('Select a vehicle','error');return;}
+  if(litres<=0){toast('Enter litres','error');return;}
+  if(cost_per_litre<0){toast('Invalid cost per litre','error');return;}
+  var r=await api('/api/fuel',{vehicle_id:vehicle_id,litres:litres,cost_per_litre:cost_per_litre,notes:notes||undefined});
+  if(r&&r.ok){
+    var j=await r.json();
+    toast('Fuel logged — '+D.settings.currency+(fmt(j.total))+' total');
+    var m=document.getElementById('modal-fuel');if(m)m.remove();
+    await load();nav('Fuel');
+  }else toast('Failed','error');
+}
+
+/* ── WASHING ── */
+function openLogWash(){
+  var cur=D.settings.currency||'R';
+  var defaultRate=D.settings.washRate!=null?D.settings.washRate:15;
+  var html='<div class="modal-overlay open" id="modal-wash"><div class="modal">'+
+    '<div class="modal-title">🧺 LOG WASH</div>'+
+    '<div class="form-group"><label class="form-label">Dirty Amount ('+cur+')</label><input class="form-input" id="wash-dirty" type="number" min="1" step="0.01" placeholder="e.g. 50000" oninput="calcWashFee()"></div>'+
+    '<div class="form-row">'+
+      '<div class="form-group"><label class="form-label">Wash Rate (%)</label><input class="form-input" id="wash-rate" type="number" min="0" max="100" step="0.1" value="'+defaultRate+'" oninput="calcWashFee()"><p style="font-size:10px;color:var(--text3);margin-top:3px">Default: '+defaultRate+'%</p></div>'+
+      '<div class="form-group"><div style="padding-top:24px"><div id="wash-preview" style="padding:10px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12px">'+
+        'Fee: <strong id="wash-fee-val" style="color:var(--red)">'+cur+'0</strong><br>'+
+        'Clean out: <strong id="wash-clean-val" style="color:var(--lime)">'+cur+'0</strong>'+
+      '</div></div></div>'+
+    '</div>'+
+    '<div class="form-group"><label class="form-label">Notes (optional)</label><input class="form-input" id="wash-notes" placeholder="e.g. Carwash business, restaurant front"></div>'+
+    '<p style="font-size:11px;color:var(--text3);margin-bottom:14px">⚠️ Fee will be auto-logged as an expense entry.</p>'+
+    '<div class="modal-footer"><button class="btn btn-ghost" onclick="document.getElementById(\'modal-wash\').remove()">Cancel</button>'+
+    '<button class="btn btn-primary" onclick="submitWash()">LOG WASH</button></div>'+
+  '</div></div>';
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+function calcWashFee(){
+  var dirty=parseFloat((document.getElementById('wash-dirty')||{}).value)||0;
+  var rate=parseFloat((document.getElementById('wash-rate')||{}).value)||0;
+  var fee=Math.round(dirty*rate)/100;
+  var clean=dirty-fee;
+  var cur=D.settings.currency||'R';
+  var fEl=document.getElementById('wash-fee-val'),cEl=document.getElementById('wash-clean-val');
+  if(fEl)fEl.textContent=cur+fmt(fee);
+  if(cEl)cEl.textContent=cur+fmt(clean);
+}
+async function submitWash(){
+  var dirty=parseFloat((document.getElementById('wash-dirty')||{}).value)||0;
+  var rate=parseFloat((document.getElementById('wash-rate')||{}).value);
+  if(isNaN(rate))rate=D.settings.washRate||15;
+  var notes=((document.getElementById('wash-notes')||{}).value||'').trim();
+  if(dirty<=0){toast('Enter dirty amount','error');return;}
+  if(rate<0||rate>100){toast('Rate must be 0–100%','error');return;}
+  var r=await api('/api/wash',{dirty_amount:dirty,wash_rate:rate,notes:notes||undefined});
+  if(r&&r.ok){
+    var j=await r.json();
+    toast('Wash logged — fee: '+(D.settings.currency||'R')+fmt(j.fee)+', clean out: '+(D.settings.currency||'R')+fmt(j.clean));
+    var m=document.getElementById('modal-wash');if(m)m.remove();
+    await load();nav('Washing');
+  }else toast('Failed','error');
+}
+
 load();
 </script>
 </body>
