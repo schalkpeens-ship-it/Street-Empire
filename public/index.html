@@ -768,7 +768,6 @@ function show(p){
     document.querySelector('#modal-service-log').addEventListener('click',function(e){if(e.target===this)closeServiceLog();});
     return;
   }
-}
 
   if(p==='Fuel'){
     var totalFuel=D.fuelLogs.reduce(function(a,f){return a+Number(f.total_cost);},0);
@@ -816,6 +815,7 @@ function show(p){
       '<div class="card">'+rows+'</div>';
     return;
   }
+}
 
 function filterEntries(type,btn){
   document.querySelectorAll('.filter-chip').forEach(function(c){c.classList.remove('active');});btn.classList.add('active');
